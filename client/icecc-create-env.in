@@ -216,7 +216,7 @@ else
         clang=1
     elif test "$1" = "--run"; then
         shift
-        extrafiles=$1
+        extrafiles="$1 /usr/bin/as"
         shift
     else
         usage
@@ -241,7 +241,9 @@ if test -n "$clang"; then
 fi
 
 if test -n "$extrafiles"; then
-    check_exec "$extrafiles" || exit 1
+    for f in $extrafiles; do
+        check_exec "$f" || exit 1
+    done
 fi
 
 while [ $# -gt 0 ]; do
