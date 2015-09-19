@@ -17,6 +17,7 @@ usage ()
     echo "usage: $0 --clang <clang_path>"
     echo "usage: $0 --run <cmd_path>"
     echo "usage: Use --addfile <file> to add extra files."
+    echo "usage: Use --add_gcc <gcc_path> to add the gcc C compiler."
 }
 
 is_contained ()
@@ -228,7 +229,6 @@ if test -n "$gcc"; then
         usage
         exit 1
     fi
-    check_exec "$added_gcc" || exit 1
     check_exec "$added_gxx" || exit 1
 fi
 
@@ -244,11 +244,33 @@ if test -n "$extrafiles"; then
     check_exec "$extrafiles" || exit 1
 fi
 
-while test "x$1" = "x--addfile"; do
+while [ $# -gt 0 ]; do
+    o="$1"
     shift
-    extrafiles="$extrafiles $1"
-    shift
+    case "$o" in
+    --addfile)
+        extrafiles="$extrafiles $1"
+        shift
+        ;;
+    --add_gcc)
+        if test -z "$added_gcc"; then
+            added_gcc="$1"
+        else
+            echo "The --add_gcc option can only be used once and not together with --gcc"
+            exit 1
+        fi
+        shift
+        ;;
+    *)
+        echo "Unknown flag '$o'"
+        exit 1
+        ;;
+    esac
 done
+
+if test -n "$added_gcc"; then
+    check_exec "$added_gcc" || exit 1
+fi
 
 tempdir=`mktemp -d /tmp/iceccenvXXXXXX`
 
@@ -259,22 +281,18 @@ elif test -x /usr/bin/true; then
     add_file /usr/bin/true /bin/true
 fi
 
-if test -n "$gcc"; then
-    # getting compilers abs path
+add_gcc() {
+    local added_gcc="$1"
     added_gcc=$(abs_path $added_gcc)
-    added_gxx=$(abs_path $added_gxx)
 
     if test -z "$clang"; then
         add_file $added_gcc /usr/bin/gcc
-        add_file $added_gxx /usr/bin/g++
     else
         # HACK: The clang case below will add a wrapper in place of gcc, so add the real
         # gcc under a different name that the wrapper will call.
         add_file $added_gcc /usr/bin/gcc.bin
-        add_file $added_gxx /usr/bin/g++.bin
     fi
     add_file `$added_gcc -print-prog-name=cc1` /usr/bin/cc1
-    add_file `$added_gxx -print-prog-name=cc1plus` /usr/bin/cc1plus
 
     gcc_as=$($added_gcc -print-prog-name=as)
     if test "$gcc_as" = "as"; then
@@ -285,6 +303,25 @@ if test -n "$gcc"; then
 
     search_addfile $added_gcc specs
     search_addfile $added_gcc liblto_plugin.so
+}
+add_gxx() {
+    # getting compilers abs path
+    added_gxx=$(abs_path $added_gxx)
+
+    if test -z "$clang"; then
+        add_file $added_gxx /usr/bin/g++
+    else
+        add_file $added_gxx /usr/bin/g++.bin
+    fi
+    add_file `$added_gxx -print-prog-name=cc1plus` /usr/bin/cc1plus
+}
+
+if test -n "$added_gcc"; then
+    add_gcc "$added_gcc"
+fi
+
+if test -n "$added_gxx"; then
+    add_gxx "$added_gxx"
 fi
 
 if test -n "$clang"; then
