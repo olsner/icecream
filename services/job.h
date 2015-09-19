@@ -150,6 +150,16 @@ public:
         return m_dwarf_fission;
     }
 
+    void setStreaming(bool streaming)
+    {
+        m_streaming = streaming;
+    }
+
+    bool streaming() const
+    {
+        return m_streaming;
+    }
+
     void setWorkingDirectory(const std::string& dir)
     {
         m_working_directory = dir;
@@ -196,6 +206,7 @@ private:
     std::string m_environment_version;
     ArgumentsList m_flags;
     std::string m_input_file, m_output_file;
+    bool m_streaming;
     std::string m_working_directory;
     std::string m_target_platform;
     bool m_dwarf_fission;

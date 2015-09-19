@@ -875,7 +875,8 @@ int Daemon::scheduler_use_cs(UseCSMsg *msg)
 {
     Client *c = clients.find_by_client_id(msg->client_id);
     trace() << "handle_use_cs " << msg->job_id << " " << msg->client_id
-            << " " << c << " " << msg->hostname << " " << remote_name <<  endl;
+            << " " << c << " " << msg->hostname << " " << remote_name
+            << " got_env=" << msg->got_env << endl;
 
     if (!c) {
         if (send_scheduler(JobDoneMsg(msg->job_id, 107, JobDoneMsg::FROM_SUBMITTER))) {
@@ -886,12 +887,12 @@ int Daemon::scheduler_use_cs(UseCSMsg *msg)
     }
 
     if (msg->hostname == remote_name && int(msg->port) == daemon_port) {
-        c->usecsmsg = new UseCSMsg(msg->host_platform, "127.0.0.1", daemon_port, msg->job_id, true, 1,
+        c->usecsmsg = new UseCSMsg(msg->host_platform, "127.0.0.1", daemon_port, msg->job_id, msg->got_env, 1,
                                    msg->matched_job_id);
         c->status = Client::PENDING_USE_CS;
     } else {
         c->usecsmsg = new UseCSMsg(msg->host_platform, msg->hostname, msg->port,
-                                   msg->job_id, true, 1, msg->matched_job_id);
+                                   msg->job_id, msg->got_env, 1, msg->matched_job_id);
 
         if (!c->channel->send_msg(*msg)) {
             handle_end(c, 143);

@@ -55,6 +55,24 @@ inline int str_startswith(const char *head, const char *worm)
     return !strncmp(head, worm, strlen(head));
 }
 
+void just_run_job(const char *const *argv, CompileJob &job)
+{
+    // Either we have argv = [compiler ...] invoked through a symlink, or we
+    // have argv = [icecc, --run, compiler, ...]
+    bool had_cc = (job.compilerName().size() > 0);
+    if (!had_cc) {
+        job.setCompilerName(argv[0]);
+    }
+    ArgumentsList args;
+    for (int i = had_cc ? 3 : 1; argv[i]; i++) {
+        args.append(argv[i], Arg_Remote);
+    }
+    job.setFlags(args);
+    // Might not be necessary
+    job.setStreaming(true);
+    job.setLanguage(CompileJob::Lang_Custom);
+}
+
 static bool analyze_program(const char *name, CompileJob &job)
 {
     string compiler_name = find_basename(name);

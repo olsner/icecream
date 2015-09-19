@@ -329,7 +329,7 @@ bool output_needs_workaround(const CompileJob &job)
     if (const char* caret_workaround = getenv("ICECC_CARET_WORKAROUND"))
         return *caret_workaround == '1';
 #ifdef HAVE_GCC_SHOW_CARET
-    return true;
+    return job.language() != CompileJob::Lang_Custom;
 #endif
     return false;
 }

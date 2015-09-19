@@ -267,6 +267,7 @@ int main(int argc, char **argv)
 
     CompileJob job;
     bool icerun = false;
+    bool just_run = false;
 
     string compiler_name = argv[0];
     dcc_client_catch_signals();
@@ -291,6 +292,11 @@ int main(int argc, char **argv)
 
             if (arg == "--build-native") {
                 return create_native(argv + 2);
+            }
+
+            if (arg == "--run" && argc > 2) {
+                just_run = true;
+                arg = argv[2];
             }
 
             if (arg.size() > 0) {
@@ -340,7 +346,11 @@ int main(int argc, char **argv)
     dcc_ignore_sigpipe(1);
 
     list<string> extrafiles;
-    local |= analyse_argv(argv, job, icerun, &extrafiles);
+    if (just_run) {
+        just_run_job(argv, job);
+    } else {
+        local |= analyse_argv(argv, job, icerun, &extrafiles);
+    }
 
     /* If ICECC is set to disable, then run job locally, without contacting
        the daemon at all. Because of file-based locking that is used in this

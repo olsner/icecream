@@ -46,6 +46,7 @@ extern std::string get_absfilename(const std::string &_file);
 /* In arg.cpp.  */
 extern bool analyse_argv(const char * const *argv, CompileJob &job, bool icerun,
                          std::list<std::string> *extrafiles);
+extern void just_run_job(const char * const *argv, CompileJob &job);
 
 /* In cpp.cpp.  */
 extern pid_t call_cpp(CompileJob &job, int fdwrite, int fdread = -1);

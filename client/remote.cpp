@@ -311,18 +311,8 @@ static void write_server_cpp(int cpp_fd, MsgChannel *cserver)
     close(cpp_fd);
 }
 
-static void receive_file(const string& output_file, MsgChannel* cserver)
+static void receive_fd(const int obj_fd, MsgChannel* cserver)
 {
-    string tmp_file = output_file + "_icetmp";
-    int obj_fd = open(tmp_file.c_str(), O_CREAT | O_TRUNC | O_WRONLY | O_LARGEFILE, 0666);
-
-    if (obj_fd == -1) {
-        std::string errmsg("can't create ");
-        errmsg += tmp_file + ":";
-        log_perror(errmsg.c_str());
-        throw client_error(31, "Error 31 - " + errmsg);
-    }
-
     Msg* msg = 0;
     size_t uncompressed = 0;
     size_t compressed = 0;
@@ -333,7 +323,6 @@ static void receive_file(const string& output_file, MsgChannel* cserver)
         msg = cserver->get_msg(40);
 
         if (!msg) {   // the network went down?
-            unlink(tmp_file.c_str());
             throw client_error(19, "Error 19 - (network failure?)");
         }
 
@@ -344,7 +333,6 @@ static void receive_file(const string& output_file, MsgChannel* cserver)
         }
 
         if (msg->type != M_FILE_CHUNK) {
-            unlink(tmp_file.c_str());
             delete msg;
             throw client_error(20, "Error 20 - unexpcted message");
         }
@@ -354,7 +342,6 @@ static void receive_file(const string& output_file, MsgChannel* cserver)
         uncompressed += fcmsg->len;
 
         if (write(obj_fd, fcmsg->buffer, fcmsg->len) != (ssize_t)fcmsg->len) {
-            unlink(tmp_file.c_str());
             delete msg;
             throw client_error(21, "Error 21 - error writing file");
         }
@@ -365,6 +352,25 @@ static void receive_file(const string& output_file, MsgChannel* cserver)
                 << (compressed * 100 / uncompressed) << "%)" << endl;
 
     delete msg;
+}
+
+static void receive_file(const string& output_file, MsgChannel* cserver)
+{
+    string tmp_file = output_file + "_icetmp";
+    int obj_fd = open(tmp_file.c_str(), O_CREAT | O_TRUNC | O_WRONLY | O_LARGEFILE, 0666);
+    if (obj_fd == -1) {
+        std::string errmsg("can't create ");
+        errmsg += tmp_file + ":";
+        log_perror(errmsg.c_str());
+        throw(31);
+    }
+
+    try {
+        receive_fd(obj_fd, cserver);
+    } catch (...) {
+        unlink(tmp_file.c_str());
+        throw;
+    }
 
     if (close(obj_fd) != 0 || rename(tmp_file.c_str(), output_file.c_str()) != 0) {
         unlink(tmp_file.c_str());
@@ -475,7 +481,10 @@ static int build_remote_int(CompileJob &job, UseCSMsg *usecs, MsgChannel *local_
             }
         }
 
-        if (!preproc_file) {
+        if (job.streaming()) {
+            log_block bl2("sending stdin");
+            write_server_cpp(STDIN_FILENO, cserver);
+        } else if (!preproc_file) {
             int sockets[2];
 
             if (pipe(sockets)) {
@@ -577,13 +586,16 @@ static int build_remote_int(CompileJob &job, UseCSMsg *usecs, MsgChannel *local_
         bool have_dwo_file = crmsg->have_dwo_file;
         delete crmsg;
 
-        assert(!job.outputFile().empty());
-
         if (status == 0) {
-            receive_file(job.outputFile(), cserver);
-            if (have_dwo_file) {
-                string dwo_output = job.outputFile().substr(0, job.outputFile().find_last_of('.')) + ".dwo";
-                receive_file(dwo_output, cserver);
+            if (job.streaming()) {
+                receive_fd(STDOUT_FILENO, cserver);
+            } else {
+                assert(!job.outputFile().empty());
+                receive_file(job.outputFile(), cserver);
+                if (have_dwo_file) {
+                    string dwo_output = job.outputFile().substr(0, job.outputFile().find_last_of('.')) + ".dwo";
+                    receive_file(dwo_output, cserver);
+                }
             }
         }
 
@@ -729,7 +741,7 @@ int build_remote(CompileJob &job, MsgChannel *local_daemon, const Environments &
     // older compilers do not support the options we need to make it reproducible
 #if defined(__GNUC__) && ( ( (__GNUC__ == 3) && (__GNUC_MINOR__ >= 3) ) || (__GNUC__ >=4) )
 
-    if (!compiler_is_clang(job)) {
+    if (!compiler_is_clang(job) && !job.streaming()) {
         if (rand() % 1000 < permill) {
             torepeat = 3;
         }

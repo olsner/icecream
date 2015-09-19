@@ -233,11 +233,11 @@ int build_local(CompileJob &job, MsgChannel *local_daemon, struct rusage *used)
         arguments.push_back("-gsplit-dwarf");
     }
 
-    if (!job.inputFile().empty()) {
+    if (!job.inputFile().empty() && !job.streaming()) {
         arguments.push_back(job.inputFile());
     }
 
-    if (!job.outputFile().empty()) {
+    if (!job.outputFile().empty() && !job.streaming()) {
         arguments.push_back("-o");
         arguments.push_back(job.outputFile());
     }
@@ -251,10 +251,10 @@ int build_local(CompileJob &job, MsgChannel *local_daemon, struct rusage *used)
 
     argv[argc] = 0;
 #if CLIENT_DEBUG
-    trace() << "execing ";
+    trace() << "execing " << concat_args(arguments) << endl;
 
     for (int i = 0; argv[i]; i++) {
-        trace() << argv[i] << " ";
+        trace() << argv[i] << endl;
     }
 
     trace() << endl;

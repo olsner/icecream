@@ -1673,7 +1673,14 @@ string CompileFileMsg::remote_compiler_name() const
         return "clang";
     }
 
-    return job->language() == CompileJob::Lang_CXX ? "g++" : "gcc";
+    switch (job->language()) {
+        case CompileJob::Lang_CXX:
+            return "g++";
+        case CompileJob::Lang_C:
+            return "gcc";
+        default:
+            return job->compilerName();
+    }
 }
 
 CompileJob *CompileFileMsg::takeJob()

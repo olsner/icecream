@@ -205,12 +205,20 @@ int work_it(CompileJob &j, unsigned int job_stat[], MsgChannel *client, CompileR
         char **argv = new char*[argc + 1];
         int i = 0;
         bool clang = false;
+        bool gcc = false;
+        bool custom = j.language() == CompileJob::Lang_Custom;
 
         if (IS_PROTOCOL_30(client)) {
             assert(!j.compilerName().empty());
             clang = (j.compilerName().find("clang") != string::npos);
-            argv[i++] = strdup(("/usr/bin/" + j.compilerName()).c_str());
+            gcc = !custom && !clang;
+            if (custom) {
+                argv[i++] = strdup(j.compilerName().c_str());
+            } else {
+                argv[i++] = strdup(("/usr/bin/" + j.compilerName()).c_str());
+            }
         } else {
+            gcc = true;
             if (j.language() == CompileJob::Lang_C) {
                 argv[i++] = strdup("/usr/bin/gcc");
             } else if (j.language() == CompileJob::Lang_CXX) {
@@ -220,8 +228,10 @@ int work_it(CompileJob &j, unsigned int job_stat[], MsgChannel *client, CompileR
             }
         }
 
-        argv[i++] = strdup("-x");
-        argv[i++] = strdup((j.language() == CompileJob::Lang_CXX) ? "c++" : "c");
+        if (!custom) {
+            argv[i++] = strdup("-x");
+            argv[i++] = strdup((j.language() == CompileJob::Lang_CXX) ? "c++" : "c");
+        }
 
         if( clang ) {
             // gcc seems to handle setting main file name and working directory fine
@@ -256,19 +266,21 @@ int work_it(CompileJob &j, unsigned int job_stat[], MsgChannel *client, CompileR
             argv[i++] = strdup(it->c_str());
         }
 
-        if (!clang) {
+        if (gcc) {
             argv[i++] = strdup("-fpreprocessed");
         }
 
-        if (!hasPipe) {
+        if (!custom && !hasPipe) {
             argv[i++] = strdup("-pipe");
         }
 
-        argv[i++] = strdup("-");
-        argv[i++] = strdup("-o");
-        argv[i++] = strdup(file_name.c_str());
+        if (!custom) {
+            argv[i++] = strdup("-");
+            argv[i++] = strdup("-o");
+            argv[i++] = strdup(file_name.c_str());
+        }
 
-        if (!clang) {
+        if (gcc) {
             argv[i++] = strdup("--param");
             sprintf(buffer, "ggc-min-expand=%d", ggc_min_expand_heuristic(mem_limit));
             argv[i++] = strdup(buffer);
@@ -317,6 +329,12 @@ int work_it(CompileJob &j, unsigned int job_stat[], MsgChannel *client, CompileR
             assert((flags = fcntl(f, F_GETFD, 0)) < 0 || (flags & FD_CLOEXEC));
         }
 
+#endif
+
+#if 0
+        for (int i = 0; argv[i]; i++) {
+            trace() << argv[i] << endl;
+        }
 #endif
 
         execv(argv[0], const_cast<char * const*>(argv));    // no return
